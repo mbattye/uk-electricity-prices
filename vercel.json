@@ -4,13 +4,19 @@
     {
       "src": "index.html",
       "use": "@vercel/static"
+    },
+    {
+      "src": "downloads/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "handle": "filesystem"
+    },
     {
       "src": "/(.*)",
       "dest": "/index.html"
     }
   ]
 }
-
