@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The UK Energy Paradox: Interactive Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Warm Neutrals & Professional Accents -->
+    <!-- Background: Stone-50 (#fafaf9) for a calm base. -->
+    <!-- Cards: White (#ffffff) for cleanliness. -->
+    <!-- Primary Text: Stone-800 (#292524) for readability. -->
+    <!-- Accents: Teal (#0d9488) for renewables, Slate (#475569) for fossil, Orange (#ea580c) for warning/high cost. -->
+    
+    <!-- Application Structure Plan: 
+         1. Hero Section: Sets the stage with the core question.
+         2. Context Dashboard: Current snapshot of the UK grid mix and price.
+         3. The Mechanics (Interactive): Explains 'Pay-as-Clear' (Merit Order) - the core reason for high prices.
+         4. Cost Analysis (Apples to Apples): Comparing LCOE vs. System Costs (Intermittency/Backup).
+         5. The Consumer Bill: Breakdown of where the money actually goes (Network vs. Generation).
+         6. Historical Context: Timeline of prices vs. events (Ukraine, Net Zero policy).
+         7. Future Outlook: REMA (Market Reform) simulation.
+         
+         Rational: This structure moves from the "What" (high prices) to the "Why" (mechanics/hidden costs), and ends with "What's Next" (solutions).
+    -->
+
+    <!-- Visualization & Content Choices:
+         1. Merit Order Stack (Bar Chart): Crucial to explain Marginal Pricing. Users toggle gas price to see the "clearing price" line move.
+         2. System Cost Comparison (Grouped Bar): To answer the "apples to apples" request. Shows "Generation Cost" vs "Firming Cost".
+         3. Bill Breakdown (Doughnut): Standard clear visualization for parts of a whole.
+         4. Price History (Line): To show the correlation with Gas prices over time.
+         
+         CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. All visuals are HTML/Tailwind or Chart.js Canvas.
+    -->
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        /* Custom ranges for charts */
+        .chart-height-sm { height: 300px; max-height: 300px; }
+        .chart-height-md { height: 400px; max-height: 400px; }
+        
+        /* Smooth transitions */
+        .transition-all-300 { transition: all 0.3s ease-in-out; }
+        
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f5f5f4; }
+        ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800 antialiased selection:bg-teal-100 selection:text-teal-900">
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-stone-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">⚡</span>
+                    <span class="font-bold text-xl tracking-tight text-stone-900">UK Energy Insight</span>
+                </div>
+                <div class="hidden md:flex space-x-8 text-sm font-medium text-stone-600">
+                    <button onclick="scrollToSection('mechanics')" class="hover:text-teal-600 transition-colors">The Pricing System</button>
+                    <button onclick="scrollToSection('true-cost')" class="hover:text-teal-600 transition-colors">Apples to Apples</button>
+                    <button onclick="scrollToSection('breakdown')" class="hover:text-teal-600 transition-colors">Your Bill</button>
+                    <button onclick="scrollToSection('future')" class="hover:text-teal-600 transition-colors">The Future</button>
+                </div>
+                <div class="md:hidden">
+                    <!-- Mobile menu placeholder -->
+                    <button class="text-stone-500 hover:text-stone-900" onclick="alert('Please explore the dashboard below.')">Menu</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+        <div class="max-w-3xl">
+            <h1 class="text-4xl md:text-5xl font-bold text-stone-900 mb-6 leading-tight">
+                Why are UK electricity prices so high if renewables are cheap?
+            </h1>
+            <p class="text-xl text-stone-600 leading-relaxed mb-8">
+                A deep dive into the "Energy Paradox." We explore the archaic bidding system, the hidden costs of intermittency, and the reality of Net Zero economics.
+            </p>
+            <div class="flex flex-wrap gap-4">
+                <div class="bg-white px-4 py-3 rounded-lg border border-stone-200 shadow-sm flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-teal-500"></div>
+                    <div>
+                        <p class="text-xs text-stone-500 uppercase font-semibold">Renewable Capacity</p>
+                        <p class="font-bold">~48% of Generation</p>
+                    </div>
+                </div>
+                <div class="bg-white px-4 py-3 rounded-lg border border-stone-200 shadow-sm flex items-center gap-3">
+                    <div class="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <div>
+                        <p class="text-xs text-stone-500 uppercase font-semibold">Market Dependency</p>
+                        <p class="font-bold">Gas sets price 84% of time</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 1: The Mechanic (Why Prices Follow Gas) -->
+    <section id="mechanics" class="bg-white border-y border-stone-200 py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-10 max-w-3xl">
+                <h2 class="text-3xl font-bold text-stone-900 mb-4">The "Marginal Pricing" Trap</h2>
+                <p class="text-stone-600 mb-4">
+                    This is the "archaic system" Greg Jackson refers to. It's called <strong>Pay-as-Clear</strong>. 
+                    In the UK, electricity is sold in half-hour slots. The National Grid accepts bids from cheapest to most expensive until demand is met.
+                </p>
+                <p class="text-stone-600 font-medium">
+                    Crucially, <span class="text-orange-600 underline decoration-orange-300 decoration-2 underline-offset-2">the most expensive generator needed to meet demand sets the price for EVERYONE.</span>
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Interactive Controls -->
+                <div class="lg:col-span-1 bg-stone-50 p-6 rounded-xl border border-stone-200 h-fit">
+                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <span>🎛️</span> Market Simulator
+                    </h3>
+                    <p class="text-sm text-stone-500 mb-6">
+                        Adjust the global Gas Price. Watch how it affects the final price paid to cheap wind farms.
+                    </p>
+                    
+                    <label class="block text-sm font-medium text-stone-700 mb-2">Global Gas Price (£/MWh)</label>
+                    <input type="range" id="gasPriceSlider" min="40" max="250" value="120" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-orange-600 mb-2">
+                    <div class="flex justify-between text-xs text-stone-500 font-mono mb-8">
+                        <span>Low (£40)</span>
+                        <span id="gasPriceDisplay" class="font-bold text-orange-600 text-base">£120</span>
+                        <span>Crisis (£250)</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-lg border border-stone-200 shadow-sm">
+                        <p class="text-sm text-stone-500 mb-1">Final Clearing Price</p>
+                        <p id="clearingPriceDisplay" class="text-3xl font-bold text-stone-900">£120.00</p>
+                        <p class="text-xs text-stone-400 mt-2">Paid to ALL generators</p>
+                    </div>
+                </div>
+
+                <!-- Visualization -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                        <div class="chart-container chart-height-md w-full max-w-2xl mx-auto">
+                            <canvas id="meritOrderChart"></canvas>
+                        </div>
+                        <p class="text-center text-xs text-stone-400 mt-4 italic">
+                            Simplified "Merit Order" Stack. Demand is fixed at 35GW.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 2: Apples to Apples (System Costs) -->
+    <section id="true-cost" class="py-16 bg-stone-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mx-auto text-center mb-12">
+                <h2 class="text-3xl font-bold text-stone-900 mb-4">Comparing Apples to Apples</h2>
+                <p class="text-stone-600">
+                    Renewables are cheap to <em>generate</em> (LCOE), but expensive to <em>integrate</em>. 
+                    When the wind doesn't blow, we need expensive backups. When it blows too hard in the wrong place, we pay to turn it off (curtailment).
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <!-- Text Content -->
+                <div class="order-2 md:order-1 space-y-6">
+                    <div class="bg-white p-6 rounded-lg border-l-4 border-teal-500 shadow-sm">
+                        <h4 class="font-bold text-lg mb-2">1. LCOE (Generation Only)</h4>
+                        <p class="text-stone-600 text-sm">
+                            Levelized Cost of Electricity. This is the headline figure. Wind looks incredibly cheap (~£40-50/MWh) because fuel is free.
+                        </p>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-lg border-l-4 border-orange-500 shadow-sm">
+                        <h4 class="font-bold text-lg mb-2">2. VALCOE / System Cost</h4>
+                        <p class="text-stone-600 text-sm">
+                            Value-Adjusted LCOE. This adds the cost of "Firming" (Battery storage, backup gas peakers) and Grid Upgrades. 
+                            <br><br>
+                            To make wind "firm" (reliable 24/7), you must add storage costs, which can double the effective price.
+                        </p>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-lg border-l-4 border-indigo-500 shadow-sm">
+                        <h4 class="font-bold text-lg mb-2">3. Policy Costs</h4>
+                        <p class="text-stone-600 text-sm">
+                            Nuclear (like Hinkley Point C) has high upfront capex and planning costs. The Strike Price is ~£128/MWh (inflation adj), ensuring stability but at a premium over raw wind.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div class="order-1 md:order-2 bg-white p-6 rounded-xl border border-stone-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="font-bold text-stone-800">Cost Breakdown (£/MWh)</h3>
+                        <div class="flex gap-2 text-xs">
+                            <span class="px-2 py-1 bg-teal-100 text-teal-800 rounded">Generation</span>
+                            <span class="px-2 py-1 bg-orange-100 text-orange-800 rounded">Integration/Firming</span>
+                        </div>
+                    </div>
+                    <div class="chart-container chart-height-md w-full max-w-lg mx-auto">
+                        <canvas id="applesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 3: The Bill Breakdown -->
+    <section id="breakdown" class="py-16 bg-white border-y border-stone-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                
+                <!-- Chart Side -->
+                <div class="relative">
+                    <h2 class="text-2xl font-bold mb-6">Where does your money go?</h2>
+                    <div class="chart-container h-80 max-h-80 w-full max-w-md mx-auto">
+                        <canvas id="billChart"></canvas>
+                    </div>
+                    <!-- Context Stats -->
+                    <div class="grid grid-cols-2 gap-4 mt-8">
+                        <div class="text-center p-4 bg-stone-50 rounded-lg">
+                            <p class="text-xs text-stone-500">Network Costs</p>
+                            <p class="font-bold text-stone-800">~18%</p>
+                            <p class="text-xs text-stone-400 mt-1">Maintaining pylons & balancing grid</p>
+                        </div>
+                        <div class="text-center p-4 bg-stone-50 rounded-lg">
+                            <p class="text-xs text-stone-500">Env. & Social Levies</p>
+                            <p class="font-bold text-stone-800">~12-15%</p>
+                            <p class="text-xs text-stone-400 mt-1">Subsidies for RO & CfD</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Text Side -->
+                <div class="flex flex-col justify-center">
+                    <h3 class="text-xl font-bold mb-4 text-stone-900">Why the bill is more than just energy</h3>
+                    <div class="space-y-4 text-stone-600">
+                        <p>
+                            The wholesale cost (generation) is usually less than half your bill. The rest is infrastructure and policy.
+                        </p>
+                        <ul class="space-y-3">
+                            <li class="flex items-start gap-3">
+                                <span class="bg-red-100 text-red-600 p-1 rounded mt-1 text-xs">⚠️</span>
+                                <div>
+                                    <strong class="text-stone-800">Balancing Costs (BSUoS):</strong>
+                                    <p class="text-sm">When wind drops in the North or pipes congest, National Grid pays generators to turn on/off. These costs have risen 300% since 2019 due to volatility.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="bg-blue-100 text-blue-600 p-1 rounded mt-1 text-xs">🏗️</span>
+                                <div>
+                                    <strong class="text-stone-800">Legacy Subsidies (RO):</strong>
+                                    <p class="text-sm">Older renewables contracts (Renewables Obligation) are expensive and charged to bills. Newer CfDs (Contracts for Difference) are actually paying money <em>back</em> when market prices are high, but legacy costs remain.</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <span class="bg-orange-100 text-orange-600 p-1 rounded mt-1 text-xs">📉</span>
+                                <div>
+                                    <strong class="text-stone-800">Supplier Failure:</strong>
+                                    <p class="text-sm">When suppliers bust (like Bulb), the cost is socialized onto everyone's standing charges.</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 4: Future & REMA -->
+    <section id="future" class="py-16 bg-stone-900 text-stone-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-10 text-center">
+                <h2 class="text-3xl font-bold mb-4">The Solution: Decoupling the Market?</h2>
+                <p class="text-stone-400 max-w-2xl mx-auto">
+                    The government is reviewing market arrangements (REMA). The biggest proposal is splitting the market into a "Green Power Pool" and an "On-Demand Pool".
+                </p>
+            </div>
+
+            <!-- Reform Simulator -->
+            <div class="bg-stone-800 rounded-2xl p-8 border border-stone-700 max-w-4xl mx-auto">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Price Impact Simulator</h3>
+                        <p class="text-stone-400 text-sm">Toggle between current marginal pricing and a split market.</p>
+                    </div>
+                    
+                    <div class="flex bg-stone-900 p-1 rounded-lg">
+                        <button id="btn-current" class="px-6 py-2 rounded-md text-sm font-medium bg-teal-600 text-white shadow-lg transition-all" onclick="toggleMarketMode('current')">Current System</button>
+                        <button id="btn-split" class="px-6 py-2 rounded-md text-sm font-medium text-stone-400 hover:text-white transition-all" onclick="toggleMarketMode('split')">Decoupled Market</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-end border-b border-stone-700 pb-2">
+                            <span class="text-stone-400">Gas Price Component</span>
+                            <span id="sim-gas" class="text-xl font-mono text-orange-400">£120/MWh</span>
+                        </div>
+                        <div class="flex justify-between items-end border-b border-stone-700 pb-2">
+                            <span class="text-stone-400">Renewable Price Component</span>
+                            <span id="sim-renew" class="text-xl font-mono text-teal-400">£120/MWh</span>
+                        </div>
+                        <div class="pt-4">
+                            <div class="flex justify-between items-end">
+                                <span class="text-lg font-bold">Average Consumer Price</span>
+                                <span id="sim-total" class="text-4xl font-bold text-white">£120</span>
+                            </div>
+                            <p id="sim-explainer" class="text-xs text-stone-500 mt-2 text-right">
+                                Currently, renewables are paid the marginal gas price.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="bg-stone-900/50 p-6 rounded-xl border border-stone-700 flex flex-col justify-center">
+                        <h4 class="font-bold text-teal-400 mb-2">Why split?</h4>
+                        <p id="sim-text" class="text-sm text-stone-300">
+                            In the current system, even if wind costs £50 to make, we pay them £120 if gas sets the price. This encourages investment but hurts consumers. <br><br>
+                            <strong>Splitting</strong> would pay wind their long-run average cost (CfD price) and only pay gas the high price for the portion of energy they provide.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-stone-100 py-12 border-t border-stone-200 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-stone-500 text-sm">
+                <strong>Data Sources:</strong> BEIS Electricity Generation Costs (2023), Ofgem Price Cap methodology, National Grid ESO Reports.
+                <br>This is a simplified educational model to demonstrate market principles.
+            </p>
+            <p class="text-stone-400 text-xs mt-4">
+                &copy; 2024 UK Energy Insight | Designed for clarity.
+            </p>
+        </div>
+    </footer>
+
+    <!-- JS Logic -->
+    <script>
+        // --- DATA & STATE ---
+        const state = {
+            gasPrice: 120, // Initial Slider Value
+            demand: 35, // GW
+            marketMode: 'current' // 'current' or 'split'
+        };
+
+        // --- CHARTS INITIALIZATION ---
+        
+        // 1. MERIT ORDER CHART
+        const ctxMerit = document.getElementById('meritOrderChart').getContext('2d');
+        const meritChart = new Chart(ctxMerit, {
+            type: 'bar',
+            data: {
+                labels: ['Wind & Solar', 'Nuclear', 'Biomass/Hydro', 'Gas (CCGT)', 'Peaker Plants'],
+                datasets: [{
+                    label: 'Bid Price (£/MWh)',
+                    data: [0, 10, 50, 120, 200], // Initial values
+                    backgroundColor: [
+                        '#0d9488', // Teal (Renewables)
+                        '#14b8a6', // Teal Light (Nuclear - treated as low marginal cost)
+                        '#f59e0b', // Amber
+                        '#ea580c', // Orange (Gas)
+                        '#b91c1c'  // Red (Peaker)
+                    ],
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0,
+                    borderWidth: 1,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Bid: £${context.raw}/MWh`;
+                            }
+                        }
+                    },
+                    annotation: {
+                        annotations: {
+                            line1: {
+                                type: 'line',
+                                yMin: 120,
+                                yMax: 120,
+                                borderColor: '#000',
+                                borderWidth: 2,
+                                borderDash: [6, 6],
+                                label: {
+                                    content: 'Clearing Price',
+                                    enabled: true,
+                                    position: 'end'
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Bid Price (£/MWh)' },
+                        max: 300
+                    },
+                    x: {
+                        title: { display: true, text: 'Generation Sources (Cumulative Capacity)' }
+                    }
+                }
+            }
+        });
+
+        // 2. APPLES TO APPLES CHART
+        const ctxApples = document.getElementById('applesChart').getContext('2d');
+        const applesChart = new Chart(ctxApples, {
+            type: 'bar',
+            data: {
+                labels: ['Offshore Wind', 'Solar PV', 'Gas (CCGT)', 'Nuclear (Large)'],
+                datasets: [
+                    {
+                        label: 'Generation Cost (LCOE)',
+                        data: [44, 41, 95, 105], // Data indicative of 2025 projections
+                        backgroundColor: '#0d9488',
+                        stack: 'Stack 0',
+                    },
+                    {
+                        label: 'Intermittency/Firming Cost',
+                        data: [35, 25, 5, 0], // Estimated system costs (backup/storage)
+                        backgroundColor: '#ea580c',
+                        stack: 'Stack 0',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            footer: (tooltipItems) => {
+                                let total = 0;
+                                tooltipItems.forEach(function(tooltipItem) {
+                                    total += tooltipItem.parsed.y;
+                                });
+                                return 'Total System Cost: £' + total;
+                            }
+                        }
+                    },
+                    legend: { position: 'bottom' }
+                },
+                scales: {
+                    y: {
+                        stacked: true,
+                        title: { display: true, text: '£ / MWh' }
+                    },
+                    x: {
+                        stacked: true
+                    }
+                }
+            }
+        });
+
+        // 3. BILL BREAKDOWN CHART
+        const ctxBill = document.getElementById('billChart').getContext('2d');
+        const billChart = new Chart(ctxBill, {
+            type: 'doughnut',
+            data: {
+                labels: ['Wholesale Energy', 'Network Costs', 'Social/Env Levies', 'Operating Costs', 'VAT/Other'],
+                datasets: [{
+                    data: [45, 18, 14, 18, 5],
+                    backgroundColor: ['#0f766e', '#fb923c', '#06b6d4', '#78716c', '#e7e5e4'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right' }
+                }
+            }
+        });
+
+        // --- INTERACTIVITY LOGIC ---
+
+        // Merit Order Logic
+        const gasSlider = document.getElementById('gasPriceSlider');
+        const gasDisplay = document.getElementById('gasPriceDisplay');
+        const clearingDisplay = document.getElementById('clearingPriceDisplay');
+
+        function updateMeritOrder() {
+            const gasPrice = parseInt(gasSlider.value);
+            state.gasPrice = gasPrice;
+            
+            // Update UI Numbers
+            gasDisplay.innerText = `£${gasPrice}`;
+            
+            // In a Marginal system, if Gas is required (it is in our scenario), 
+            // the Clearing Price = Gas Price.
+            clearingDisplay.innerText = `£${gasPrice}.00`;
+
+            // Update Chart Data
+            // Index 3 is Gas, Index 4 is Peaker (usually gas + premium)
+            meritChart.data.datasets[0].data[3] = gasPrice; 
+            meritChart.data.datasets[0].data[4] = gasPrice + 40; // Peakers always more expensive
+
+            // Update Clearing Line
+            // Note: In Chart.js annotation plugin might need redraw or specific update call depending on version
+            // For simplicity in this Vanilla setup, we assume visual indication via bars is primary.
+            // But we can simulate the "Pay everyone this price" visually if we wanted, 
+            // but keeping it simple: The highest bar in the stack (that falls within demand) sets the line.
+            
+            meritChart.update();
+            
+            // Also update the Simulator if in 'current' mode
+            if(state.marketMode === 'current') {
+                updateSimulatorValues();
+            }
+        }
+
+        gasSlider.addEventListener('input', updateMeritOrder);
+
+        // Market Reform Simulator Logic
+        function toggleMarketMode(mode) {
+            state.marketMode = mode;
+            const btnCurrent = document.getElementById('btn-current');
+            const btnSplit = document.getElementById('btn-split');
+            
+            if (mode === 'current') {
+                btnCurrent.classList.remove('text-stone-400', 'bg-transparent', 'hover:text-white');
+                btnCurrent.classList.add('bg-teal-600', 'text-white', 'shadow-lg');
+                
+                btnSplit.classList.add('text-stone-400', 'bg-transparent', 'hover:text-white');
+                btnSplit.classList.remove('bg-teal-600', 'text-white', 'shadow-lg');
+                
+                document.getElementById('sim-explainer').innerText = "Currently, renewables are paid the marginal gas price.";
+            } else {
+                btnSplit.classList.remove('text-stone-400', 'bg-transparent', 'hover:text-white');
+                btnSplit.classList.add('bg-teal-600', 'text-white', 'shadow-lg');
+                
+                btnCurrent.classList.add('text-stone-400', 'bg-transparent', 'hover:text-white');
+                btnCurrent.classList.remove('bg-teal-600', 'text-white', 'shadow-lg');
+                
+                document.getElementById('sim-explainer').innerText = "With decoupling, cheap power is sold at its own lower rate.";
+            }
+            updateSimulatorValues();
+        }
+
+        function updateSimulatorValues() {
+            const gasP = state.gasPrice;
+            const renewP = 55; // Average CfD/LCOE price
+            
+            const gasEl = document.getElementById('sim-gas');
+            const renewEl = document.getElementById('sim-renew');
+            const totalEl = document.getElementById('sim-total');
+            
+            // Current Market: Everyone gets Gas Price
+            if (state.marketMode === 'current') {
+                gasEl.innerText = `£${gasP}/MWh`;
+                gasEl.className = "text-xl font-mono text-orange-400";
+                
+                renewEl.innerText = `£${gasP}/MWh`; // They get the clearing price!
+                renewEl.className = "text-xl font-mono text-orange-400"; // Highlight this is high
+                
+                totalEl.innerText = `£${gasP}`;
+            } 
+            // Split Market: Weighted Average
+            else {
+                gasEl.innerText = `£${gasP}/MWh`;
+                gasEl.className = "text-xl font-mono text-orange-400";
+                
+                renewEl.innerText = `£${renewP}/MWh`; // They get their actual cost
+                renewEl.className = "text-xl font-mono text-teal-400"; // Highlight this is low
+                
+                // Assuming 50/50 mix for simplicity
+                const weightedAvg = Math.round((gasP * 0.4) + (renewP * 0.6));
+                totalEl.innerText = `£${weightedAvg}`;
+            }
+        }
+
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Init
+        updateMeritOrder();
+        updateSimulatorValues();
+
+    </script>
+</body>
+</html>
