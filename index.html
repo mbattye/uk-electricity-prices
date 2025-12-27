@@ -155,7 +155,8 @@
                             <canvas id="meritOrderChart"></canvas>
                         </div>
                         <p class="text-center text-xs text-stone-400 mt-4 italic">
-                            Simplified "Merit Order" Stack. Demand is fixed at 35GW.
+                            Simplified "Merit Order" Stack showing Installed Capacity (GW). <br>
+                            Note: Renewables are modeled with a £5 nominal bid for visibility (actual bids often ~£0).
                         </p>
                     </div>
                 </div>
@@ -386,37 +387,111 @@
 
         // --- CHARTS INITIALIZATION ---
         
-        // 1. MERIT ORDER CHART
+            // 1. MERIT ORDER CHART
         const ctxMerit = document.getElementById('meritOrderChart').getContext('2d');
+        
+        // Track cursor for tooltip filtering
+        let activeCursorX = null;
+
         const meritChart = new Chart(ctxMerit, {
-            type: 'bar',
+            type: 'line',
             data: {
-                labels: ['Wind & Solar', 'Nuclear', 'Biomass/Hydro', 'Gas (CCGT)', 'Peaker Plants'],
-                datasets: [{
-                    label: 'Bid Price (£/MWh)',
-                    data: [0, 10, 50, 120, 200], // Initial values
-                    backgroundColor: [
-                        '#0d9488', // Teal (Renewables)
-                        '#14b8a6', // Teal Light (Nuclear - treated as low marginal cost)
-                        '#f59e0b', // Amber
-                        '#ea580c', // Orange (Gas)
-                        '#b91c1c'  // Red (Peaker)
-                    ],
-                    barPercentage: 1.0,
-                    categoryPercentage: 1.0,
-                    borderWidth: 1,
-                    borderColor: '#fff'
-                }]
+                datasets: [
+                    {
+                        label: 'Wind & Solar',
+                        data: [{x: 0, y: 5}, {x: 50, y: 5}],
+                        borderColor: '#0d9488',
+                        backgroundColor: 'rgba(13, 148, 136, 0.8)', // Added opacity
+                        borderWidth: 2,
+                        fill: 'start',
+                        pointRadius: 0,
+                        stepped: 'before'
+                    },
+                    {
+                        label: 'Nuclear',
+                        data: [{x: 50, y: 15}, {x: 56, y: 15}],
+                        borderColor: '#14b8a6',
+                        backgroundColor: 'rgba(20, 184, 166, 0.8)',
+                        borderWidth: 2,
+                        fill: 'start',
+                        pointRadius: 0,
+                        stepped: 'before'
+                    },
+                    {
+                        label: 'Biomass/Hydro',
+                        data: [{x: 56, y: 50}, {x: 64, y: 50}],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                        borderWidth: 2,
+                        fill: 'start',
+                        pointRadius: 0,
+                        stepped: 'before'
+                    },
+                    {
+                        label: 'Gas (CCGT)',
+                        data: [{x: 64, y: 120}, {x: 95, y: 120}],
+                        borderColor: '#ea580c',
+                        backgroundColor: 'rgba(234, 88, 12, 0.8)',
+                        borderWidth: 2,
+                        fill: 'start',
+                        pointRadius: 0,
+                        stepped: 'before'
+                    },
+                    {
+                        label: 'Peaker Plants',
+                        data: [{x: 95, y: 200}, {x: 100, y: 200}],
+                        borderColor: '#b91c1c',
+                        backgroundColor: 'rgba(185, 28, 28, 0.8)',
+                        borderWidth: 2,
+                        fill: 'start',
+                        pointRadius: 0,
+                        stepped: 'before'
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onHover: (e, elements, chart) => {
+                    if (e && e.x !== undefined && chart.scales.x) {
+                        activeCursorX = chart.scales.x.getValueForPixel(e.x);
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                },
                 plugins: {
-                    legend: { display: false },
+                    legend: {
+                         display: true,
+                         position: 'bottom',
+                         labels: { boxWidth: 12 }
+                    },
                     tooltip: {
+                        filter: function(tooltipItem) {
+                            if (activeCursorX === null) return true;
+                            // Only show tooltip if cursor is within the X range of this dataset
+                            const data = tooltipItem.dataset.data;
+                            const start = data[0].x;
+                            const end = data[data.length - 1].x;
+                            // Use a small buffer to avoid flickering at exact boundaries
+                            return activeCursorX >= start && activeCursorX <= end;
+                        },
                         callbacks: {
                             label: function(context) {
-                                return `Bid: £${context.raw}/MWh`;
+                                const dataset = context.dataset;
+                                const start = dataset.data[0].x;
+                                const end = dataset.data[1].x;
+                                const capacity = end - start;
+                                const price = dataset.data[0].y;
+                                
+                                return [
+                                    `${dataset.label}`,
+                                    `Bid Price: £${price}/MWh`,
+                                    `Installed Capacity: ${capacity} GW`,
+                                    `Cumulative Range: ${start}-${end} GW`
+                                ];
                             }
                         }
                     },
@@ -445,7 +520,10 @@
                         max: 300
                     },
                     x: {
-                        title: { display: true, text: 'Generation Sources (Cumulative Capacity)' }
+                        type: 'linear',
+                        title: { display: true, text: 'Cumulative Capacity (GW)' },
+                        min: 0,
+                        max: 100
                     }
                 }
             }
@@ -541,15 +619,23 @@
             clearingDisplay.innerText = `£${gasPrice}.00`;
 
             // Update Chart Data
-            // Index 3 is Gas, Index 4 is Peaker (usually gas + premium)
-            meritChart.data.datasets[0].data[3] = gasPrice; 
-            meritChart.data.datasets[0].data[4] = gasPrice + 40; // Peakers always more expensive
+            // Gas is Dataset 3, Peaker is Dataset 4 in the new Line/Scatter setup
+            const gasDataset = meritChart.data.datasets[3];
+            const peakerDataset = meritChart.data.datasets[4];
+
+            // Update Y values for both points in the segment
+            gasDataset.data[0].y = gasPrice;
+            gasDataset.data[1].y = gasPrice;
+
+            peakerDataset.data[0].y = gasPrice + 40;
+            peakerDataset.data[1].y = gasPrice + 40;
 
             // Update Clearing Line
-            // Note: In Chart.js annotation plugin might need redraw or specific update call depending on version
-            // For simplicity in this Vanilla setup, we assume visual indication via bars is primary.
-            // But we can simulate the "Pay everyone this price" visually if we wanted, 
-            // but keeping it simple: The highest bar in the stack (that falls within demand) sets the line.
+            // For annotation plugin, we need to access the options object directly
+            if (meritChart.options.plugins.annotation && meritChart.options.plugins.annotation.annotations.line1) {
+                meritChart.options.plugins.annotation.annotations.line1.yMin = gasPrice;
+                meritChart.options.plugins.annotation.annotations.line1.yMax = gasPrice;
+            }
             
             meritChart.update();
             
